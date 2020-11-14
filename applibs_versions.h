@@ -1,4 +1,7 @@
-﻿#pragma once
+/* Copyright (c) Microsoft Corporation. All rights reserved.
+   Licensed under the MIT License. */
+
+#pragma once
 
 /// <summary>
 /// This identifier should be defined before including any of the networking-related header files.

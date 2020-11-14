@@ -1,4 +1,4 @@
-{
+﻿{
   "environments": [
     {
       "environment": "AzureSphere"
@@ -13,7 +13,7 @@
         "AzureSphere"
       ],
       "buildRoot": "${projectDir}\\out\\${name}",
-      "installRoot": "${projectDir}\\out\\${name}",
+      "installRoot": "${projectDir}\\install\\${name}",
       "cmakeToolchain": "${env.AzureSphereDefaultSDKDir}CMakeFiles\\AzureSphereToolchain.cmake",
       "buildCommandArgs": "-v",
       "ctestCommandArgs": "",
@@ -32,7 +32,7 @@
         "AzureSphere"
       ],
       "buildRoot": "${projectDir}\\out\\${name}",
-      "installRoot": "${projectDir}\\out\\${name}",
+      "installRoot": "${projectDir}\\install\\${name}",
       "cmakeToolchain": "${env.AzureSphereDefaultSDKDir}CMakeFiles\\AzureSphereToolchain.cmake",
       "buildCommandArgs": "-v",
       "ctestCommandArgs": "",
