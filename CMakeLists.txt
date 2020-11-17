@@ -8,7 +8,7 @@ project(AzureIoT C)
 azsphere_configure_tools(TOOLS_REVISION "20.10")
 azsphere_configure_api(TARGET_API_SET "7")
 
-add_executable(${PROJECT_NAME} main.c eventloop_timer_utilities.c parson.c)
+add_executable(${PROJECT_NAME} main.c eventloop_timer_utilities.c parson.c azure_sphere_provisioningv2.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${AZURE_SPHERE_API_SET_DIR}/usr/include/azureiot 
                            ${AZURE_SPHERE_API_SET_DIR}/usr/include/azure_prov_client 
                            ${AZURE_SPHERE_API_SET_DIR}/usr/include/azure_c_shared_utility)
