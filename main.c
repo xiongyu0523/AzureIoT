@@ -51,7 +51,6 @@
 #include <applibs/log.h>
 #include <applibs/networking.h>
 #include <applibs/storage.h>
-#include <applibs/application.h>
 
 // The following #include imports a "sample appliance" definition. This app comes with multiple
 // implementations of the sample appliance, each in a separate directory, which allow the code to
@@ -76,12 +75,9 @@
 #include <iothub_client_options.h>
 #include <iothubtransportmqtt.h>
 #include <iothub.h>
-#include <azure_sphere_provisioning.h>
+#include "azure_sphere_provisioningv2.h"
 #include <iothub_security_factory.h>
 #include <shared_util_options.h>
-#include <prov_device_ll_client.h>
-#include <prov_security_factory.h>
-#include <prov_transport_mqtt_client.h>
 
 /// <summary>
 /// Exit codes for this application. These are used for the
@@ -148,13 +144,7 @@ typedef enum {
     IoTHubClientAuthenticationState_Authenticated = 2
 } IoTHubClientAuthenticationState;
 
-typedef struct _dps_callback_context {
-    int registration_complete;
-    char *iothub_uri;
-} DpsCbContext;
-
 // Azure IoT definitions.
-static bool isChinaDps = false;
 static char *scopeId = NULL;  // ScopeId for DPS.
 static char *hostName = NULL; // Azure IoT Hub or IoT Edge Hostname.
 static ConnectionType connectionType = ConnectionType_NotDefined; // Type of connection to use.
@@ -193,10 +183,6 @@ static ExitCode ValidateUserConfiguration(void);
 static void ParseCommandLineArguments(int argc, char *argv[]);
 static bool SetUpAzureIoTHubClientWithDaa(void);
 static bool SetUpAzureIoTHubClientWithDps(void);
-static void msleep(uint32_t ms);
-static void register_device_callback(PROV_DEVICE_RESULT register_result, const char *iothub_uri,
-                                     const char *not_used, void *user_context);
-static bool SetUpAzureIoTHubClientWithAzureChinaDps(void);
 static bool IsConnectionReadyToSendTelemetry(void);
 static ExitCode ReadIoTEdgeCaCertContent(void);
 
@@ -220,8 +206,8 @@ static EventLoopTimer *azureTimer = NULL;
 // Azure IoT poll periods
 static const int AzureIoTDefaultPollPeriodSeconds = 1;        // poll azure iot every second
 static const int AzureIoTPollPeriodsPerTelemetry = 5;         // only send telemetry 1/5 of polls
-static const int AzureIoTMinReconnectPeriodSeconds = 60;      // back off when reconnecting
-static const int AzureIoTMaxReconnectPeriodSeconds = 10 * 60; // back off limit
+static const int AzureIoTMinReconnectPeriodSeconds = 10;      // back off when reconnecting
+static const int AzureIoTMaxReconnectPeriodSeconds = 60;      // back off limit
 
 static int azureIoTPollPeriodSeconds = -1;
 static int telemetryCount = 0;
@@ -230,35 +216,7 @@ static int telemetryCount = 0;
 static GPIO_Value_Type sendMessageButtonState = GPIO_Value_High;
 static bool statusLedOn = false;
 
-static const char digiCertGlobalRootCA[] =
-    /* DigiCert Global Root CA */
-    "-----BEGIN CERTIFICATE-----\r\n"
-    "MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh\r\n"
-    "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\r\n"
-    "d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD\r\n"
-    "QTAeFw0wNjExMTAwMDAwMDBaFw0zMTExMTAwMDAwMDBaMGExCzAJBgNVBAYTAlVT\r\n"
-    "MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j\r\n"
-    "b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IENBMIIBIjANBgkqhkiG\r\n"
-    "9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4jvhEXLeqKTTo1eqUKKPC3eQyaKl7hLOllsB\r\n"
-    "CSDMAZOnTjC3U/dDxGkAV53ijSLdhwZAAIEJzs4bg7/fzTtxRuLWZscFs3YnFo97\r\n"
-    "nh6Vfe63SKMI2tavegw5BmV/Sl0fvBf4q77uKNd0f3p4mVmFaG5cIzJLv07A6Fpt\r\n"
-    "43C/dxC//AH2hdmoRBBYMql1GNXRor5H4idq9Joz+EkIYIvUX7Q6hL+hqkpMfT7P\r\n"
-    "T19sdl6gSzeRntwi5m3OFBqOasv+zbMUZBfHWymeMr/y7vrTC0LUq7dBMtoM1O/4\r\n"
-    "gdW7jVg/tRvoSSiicNoxBN33shbyTApOB6jtSj1etX+jkMOvJwIDAQABo2MwYTAO\r\n"
-    "BgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUA95QNVbR\r\n"
-    "TLtm8KPiGxvDl7I90VUwHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUw\r\n"
-    "DQYJKoZIhvcNAQEFBQADggEBAMucN6pIExIK+t1EnE9SsPTfrgT1eXkIoyQY/Esr\r\n"
-    "hMAtudXH/vTBH1jLuG2cenTnmCmrEbXjcKChzUyImZOMkXDiqw8cvpOp/2PV5Adg\r\n"
-    "06O/nVsJ8dWO41P0jmP6P6fbtGbfYmbW0W5BjfIttep3Sp+dWOIrWcBAI+0tKIJF\r\n"
-    "PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls\r\n"
-    "YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk\r\n"
-    "CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=\r\n"
-    "-----END CERTIFICATE-----\r\n";
-
-
 // Constants
-#define CHINA_DPS_PREIX_STR "0cn"
-
 #define MAX_DEVICE_TWIN_PAYLOAD_SIZE 512
 #define TELEMETRY_BUFFER_SIZE 100
 
@@ -413,7 +371,6 @@ static void ParseCommandLineArguments(int argc, char *argv[])
         case 's':
             Log_Debug("ScopeID: %s\n", optarg);
             scopeId = optarg;
-            isChinaDps = !strncmp(scopeId, CHINA_DPS_PREIX_STR, strlen(CHINA_DPS_PREIX_STR));
             break;
         case 'h':
             Log_Debug("Hostname: %s\n", optarg);
@@ -617,11 +574,7 @@ static void SetUpAzureIoTHubClient(void)
     if ((connectionType == ConnectionType_Direct) || (connectionType == ConnectionType_IoTEdge)) {
         isClientSetupSuccessful = SetUpAzureIoTHubClientWithDaa();
     } else if (connectionType == ConnectionType_DPS) {
-        if (isChinaDps) {
-            isClientSetupSuccessful = SetUpAzureIoTHubClientWithAzureChinaDps();
-        } else {
-            isClientSetupSuccessful = SetUpAzureIoTHubClientWithDps();
-        }
+        isClientSetupSuccessful = SetUpAzureIoTHubClientWithDps();
     }
 
     if (!isClientSetupSuccessful) {
@@ -729,13 +682,13 @@ cleanup:
 static bool SetUpAzureIoTHubClientWithDps(void)
 {
     AZURE_SPHERE_PROV_RETURN_VALUE provResult =
-        IoTHubDeviceClient_LL_CreateWithAzureSphereDeviceAuthProvisioning(scopeId, 10000,
+        IoTHubDeviceClient_LL_CreateWithAzureSphereDeviceAuthProvisioningV2(scopeId, 10000,
             &iothubClientHandle);
-    Log_Debug("IoTHubDeviceClient_LL_CreateWithAzureSphereDeviceAuthProvisioning returned '%s'.\n",
+    Log_Debug("IoTHubDeviceClient_LL_CreateWithAzureSphereDeviceAuthProvisioningV2 returned '%s'.\n",
         GetAzureSphereProvisioningResultString(provResult));
 
     if (provResult.result == AZURE_SPHERE_PROV_RESULT_PROV_DEVICE_ERROR) {
-        Log_Debug("prov_device_error is '%s'.\n", GetAzureSphereProvisioningDeviceResultString(provResult));
+        Log_Debug("The prov_device_error is '%s'.\n", GetAzureSphereProvisioningDeviceResultString(provResult));
     } 
 
     if (provResult.result != AZURE_SPHERE_PROV_RESULT_OK) {
@@ -744,103 +697,6 @@ static bool SetUpAzureIoTHubClientWithDps(void)
 
     return true;
 }
-
-static void msleep(uint32_t ms)
-{
-    struct timespec ts = {(time_t)(ms / 1000), (long)((ms % 1000) * 1000000)};
-    while ((-1 == nanosleep(&ts, &ts)) && (EINTR == errno));
-}
-
-static void register_device_callback(PROV_DEVICE_RESULT register_result, const char *iothub_uri,
-                                     const char *not_used, void *user_context)
-{
-    DpsCbContext *ctx = (DpsCbContext *)user_context;
-    if (register_result == PROV_DEVICE_RESULT_OK) {
-        Log_Debug("INFO: Registration Information received from service: %s\r\n", iothub_uri);
-        ctx->iothub_uri = malloc(strlen(iothub_uri) + 1);
-        (void)strcpy(ctx->iothub_uri, iothub_uri);
-        ctx->registration_complete = 1;
-    } else {
-        Log_Debug("ERROR: Failure encountered on registration, code = %d\r\n", register_result);
-        ctx->registration_complete = 2;
-    }
-}
-
-/// <summary>
-///     Sets up the Azure IoT Hub connection (creates the iothubClientHandle)
-///     with Azure China DPS
-/// </summary>
-static bool SetUpAzureIoTHubClientWithAzureChinaDps(void)
-{
-    bool retVal = true;
-    int device_id = 1;
-    DpsCbContext ctx;
-    PROV_DEVICE_LL_HANDLE handle;
-    PROV_DEVICE_RESULT prov_result;
-
-    bool is_daa_ready = false;
-    if (Application_IsDeviceAuthReady(&is_daa_ready) < 0) {
-        Log_Debug("ERROR: Application_IsDeviceAuthReady failed\r\n");
-        return false;
-    }
-
-    if (!is_daa_ready) {
-        Log_Debug("INFO: DAA is not done...\r\n");
-        return false;
-    }
-
-    (void)prov_dev_security_init(SECURE_DEVICE_TYPE_X509);
-
-    ctx.registration_complete = 0;
-    ctx.iothub_uri = NULL;
-
-    Log_Debug("INFO: Provisioning API Version: %s\r\n", Prov_Device_LL_GetVersionString());
-
-    if ((handle = Prov_Device_LL_Create("global.azure-devices-provisioning.cn", scopeId, Prov_Device_MQTT_Protocol)) == NULL) {
-        Log_Debug("ERROR: Prov_Device_LL_Create failed\r\n");
-        retVal = false;
-        goto cleanup;
-    }
-
-    (void)Prov_Device_LL_SetOption(handle, "SetDeviceId", &device_id);
-    (void)Prov_Device_LL_SetOption(handle, OPTION_TRUSTED_CERT, digiCertGlobalRootCA);
-
-    if ((prov_result = Prov_Device_LL_Register_Device(handle, register_device_callback, &ctx, NULL, NULL)) != PROV_DEVICE_RESULT_OK) {
-        Log_Debug("ERROR: Prov_Device_LL_Register_Device failed, code = %d\r\n", prov_result);
-        retVal = false;
-        goto cleanup;
-    } 
-
-    do {
-        Prov_Device_LL_DoWork(handle);
-        msleep(100);
-    } while (ctx.registration_complete == 0);
-    
-    Prov_Device_LL_Destroy(handle);
-
-    if (ctx.registration_complete != 1) {
-        retVal = false;
-        goto cleanup;
-    }
-
-    iothubClientHandle = IoTHubDeviceClient_LL_CreateWithAzureSphereFromDeviceAuth(ctx.iothub_uri, MQTT_Protocol);
-    if (iothubClientHandle == NULL) {
-        Log_Debug("ERROR: IoTHubDeviceClient_LL_CreateWithAzureSphereFromDeviceAuth failed.\n");
-        retVal = false;
-        goto cleanup;
-    }
-
-    (void)IoTHubDeviceClient_LL_SetOption(iothubClientHandle, "SetDeviceId", &device_id);
-    (void)IoTHubDeviceClient_LL_SetOption(iothubClientHandle, OPTION_TRUSTED_CERT, digiCertGlobalRootCA);
-
-cleanup:
-    if (ctx.iothub_uri != NULL) {
-        free(ctx.iothub_uri);
-    }
-    prov_dev_security_deinit();
-    return retVal;
-}
-
 
 /// <summary>
 ///     Callback invoked when a Direct Method is received from Azure IoT Hub.
