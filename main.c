@@ -181,6 +181,8 @@ static int DeviceMethodCallback(const char *methodName, const unsigned char *pay
 static const char *GetReasonString(IOTHUB_CLIENT_CONNECTION_STATUS_REASON reason);
 static const char *GetAzureSphereProvisioningResultString(
     AZURE_SPHERE_PROV_RETURN_VALUE provisioningResult);
+static const char* GetAzureSphereProvisioningDeviceResultString(
+    AZURE_SPHERE_PROV_RETURN_VALUE provisioningResult);
 static void SendTelemetry(const char *jsonMessage);
 static void SetUpAzureIoTHubClient(void);
 static void SendSimulatedTelemetry(void);
@@ -728,9 +730,13 @@ static bool SetUpAzureIoTHubClientWithDps(void)
 {
     AZURE_SPHERE_PROV_RETURN_VALUE provResult =
         IoTHubDeviceClient_LL_CreateWithAzureSphereDeviceAuthProvisioning(scopeId, 10000,
-                                                                          &iothubClientHandle);
+            &iothubClientHandle);
     Log_Debug("IoTHubDeviceClient_LL_CreateWithAzureSphereDeviceAuthProvisioning returned '%s'.\n",
-              GetAzureSphereProvisioningResultString(provResult));
+        GetAzureSphereProvisioningResultString(provResult));
+
+    if (provResult.result == AZURE_SPHERE_PROV_RESULT_PROV_DEVICE_ERROR) {
+        Log_Debug("prov_device_error is '%s'.\n", GetAzureSphereProvisioningDeviceResultString(provResult));
+    } 
 
     if (provResult.result != AZURE_SPHERE_PROV_RESULT_OK) {
         return false;
@@ -957,7 +963,7 @@ static const char *GetReasonString(IOTHUB_CLIENT_CONNECTION_STATUS_REASON reason
 }
 
 /// <summary>
-///     Converts AZURE_SPHERE_PROV_RETURN_VALUE to a string.
+///     Converts AZURE_SPHERE_PROV_RESULT to a string.
 /// </summary>
 static const char *GetAzureSphereProvisioningResultString(
     AZURE_SPHERE_PROV_RETURN_VALUE provisioningResult)
@@ -975,6 +981,46 @@ static const char *GetAzureSphereProvisioningResultString(
         return "AZURE_SPHERE_PROV_RESULT_PROV_DEVICE_ERROR";
     case AZURE_SPHERE_PROV_RESULT_GENERIC_ERROR:
         return "AZURE_SPHERE_PROV_RESULT_GENERIC_ERROR";
+    default:
+        return "UNKNOWN_RETURN_VALUE";
+    }
+}
+
+/// <summary>
+///     Converts AZURE_SPHERE_PROV_RETURN_VALUE to a string.
+/// </summary>
+static const char* GetAzureSphereProvisioningDeviceResultString(
+    AZURE_SPHERE_PROV_RETURN_VALUE provisioningResult)
+{
+    switch (provisioningResult.prov_device_error) {
+    case PROV_DEVICE_RESULT_OK:
+        return "PROV_DEVICE_RESULT_OK";
+    case PROV_DEVICE_RESULT_INVALID_ARG:
+        return "PROV_DEVICE_RESULT_INVALID_ARG";
+    case PROV_DEVICE_RESULT_SUCCESS:
+        return "PROV_DEVICE_RESULT_SUCCESS";
+    case PROV_DEVICE_RESULT_MEMORY:
+        return "PROV_DEVICE_RESULT_MEMORY";
+    case PROV_DEVICE_RESULT_PARSING:
+        return "PROV_DEVICE_RESULT_PARSING";
+    case PROV_DEVICE_RESULT_TRANSPORT:
+        return "PROV_DEVICE_RESULT_TRANSPORT";
+    case PROV_DEVICE_RESULT_INVALID_STATE:
+        return "PROV_DEVICE_RESULT_INVALID_STATE";
+    case PROV_DEVICE_RESULT_DEV_AUTH_ERROR:
+        return "PROV_DEVICE_RESULT_DEV_AUTH_ERROR";
+    case PROV_DEVICE_RESULT_TIMEOUT:
+        return "PROV_DEVICE_RESULT_TIMEOUT";
+    case PROV_DEVICE_RESULT_KEY_ERROR:
+        return "PROV_DEVICE_RESULT_KEY_ERROR";
+    case PROV_DEVICE_RESULT_ERROR:
+        return "PROV_DEVICE_RESULT_ERROR";
+    case PROV_DEVICE_RESULT_HUB_NOT_SPECIFIED:
+        return "PROV_DEVICE_RESULT_HUB_NOT_SPECIFIED";
+    case PROV_DEVICE_RESULT_UNAUTHORIZED:
+        return "PROV_DEVICE_RESULT_UNAUTHORIZED";
+    case PROV_DEVICE_RESULT_DISABLED:
+        return "PROV_DEVICE_RESULT_DISABLED";
     default:
         return "UNKNOWN_RETURN_VALUE";
     }
