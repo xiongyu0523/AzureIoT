@@ -35,11 +35,14 @@
 #define GLOBAL_DPS_ENDPOINT         "global.azure-devices-provisioning.net"
 #define CHINA_DPS_IDSCOPE_PREFIX    "0cn"
 #define GLOBAL_DPS_IDSCOPE_PREFIX   "0ne"
+#define CHINA_IOTHUB_SUFFIX         ".cn"
+#define GLOBAL_IOTHUB_SUFFIX        ".net"
 
 #define PROV_CHECK_LOOP             100
 
 typedef struct _dps_callback_context {
     bool registration_complete;
+    bool is_china_iothub;
     char* iothub_uri;
     PROV_DEVICE_RESULT error_code;
 } DpsCbContext;
@@ -84,16 +87,21 @@ static void msleep(uint32_t ms)
 static void register_device_callback(PROV_DEVICE_RESULT register_result, const char* iothub_uri,
     const char* not_used, void* user_context)
 {
-    DpsCbContext* ctx = (DpsCbContext*)user_context;
+    DpsCbContext* pctx = (DpsCbContext*)user_context;
     if (register_result == PROV_DEVICE_RESULT_OK) {
         Log_Debug("INFO: Registration Information received from service: %s\n", iothub_uri);
-        ctx->iothub_uri = malloc(strlen(iothub_uri) + 1);
-        (void)strcpy(ctx->iothub_uri, iothub_uri);
-        ctx->error_code = register_result;
-        ctx->registration_complete = true;
+        pctx->iothub_uri = malloc(strlen(iothub_uri) + 1);
+        (void)strcpy(pctx->iothub_uri, iothub_uri);
+
+        if (strstr(pctx->iothub_uri, CHINA_IOTHUB_SUFFIX) != NULL) {
+            pctx->is_china_iothub = true;
+        }
+
+        pctx->error_code = register_result;
+        pctx->registration_complete = true;
     } else {
-        ctx->error_code = register_result;
-        ctx->registration_complete = true;
+        pctx->error_code = register_result;
+        pctx->registration_complete = true;
     }
 }
 
@@ -155,6 +163,7 @@ AZURE_SPHERE_PROV_RETURN_VALUE IoTHubDeviceClient_LL_CreateWithAzureSphereDevice
 
     DpsCbContext ctx;
     ctx.registration_complete = false;
+    ctx.is_china_iothub = false;
     ctx.iothub_uri = NULL;
     ctx.error_code = PROV_DEVICE_RESULT_OK;
 
@@ -243,7 +252,7 @@ AZURE_SPHERE_PROV_RETURN_VALUE IoTHubDeviceClient_LL_CreateWithAzureSphereDevice
         return ret;
     }
 
-    if (isChinaDps) {
+    if (ctx.is_china_iothub) {
         if ((ret.iothub_client_error = IoTHubDeviceClient_LL_SetOption(*handle, OPTION_TRUSTED_CERT, digiCertGlobalRootCA)) != IOTHUB_CLIENT_OK) {
             Log_Debug("ERROR: IoTHubDeviceClient_LL_SetOption() failed\n");
 
