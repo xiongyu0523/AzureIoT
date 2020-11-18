@@ -1,5 +1,15 @@
 # Sample: AzureIoT
 
+## Change note
+
+This repo contains a modified AzureIoT project 
+
+1. Add a custom `IoTHubDeviceClient_LL_CreateWithAzureSphereDeviceAuthProvisioningV2` API to support provision using DPS on Azure China. 
+2. Add prov_device_error print to analyze root cause of AZURE_SPHERE_PROV_RESULT_PROV_DEVICE_ERROR failure
+3. Change retry time from 60 - 600 seconds to 10 - 60 seconds.
+
+## O
+
 This sample demonstrates how to use the Azure IoT SDK C APIs in an Azure Sphere application to communicate with Azure IoT Central or Azure IoT Hub. This sample can connect to the IoT hub in two ways. It can connect directly to an IoT hub with a device manually provisioned, or it can connect using the device provisioning service.
 
 **IMPORTANT**: This sample application requires customization before it will compile and run. Follow the instructions in this README and in IoTCentral.md and/or IoTHub.md and/or IoTEdge.md to perform the necessary steps.
